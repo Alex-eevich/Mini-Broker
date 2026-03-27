@@ -2,21 +2,25 @@ package user_data
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"log"
+	"mini-broker/internal/db"
+	"net/http"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type User struct {
-	ID         int
-	FirstName  string
-	SecondName string
-	Surname    string
-	BirthDate  string
-	Email      string
-	Login      string
-	Password   string
-	Is_aproved bool
+	ID         int    `json:"id"`
+	FirstName  string `json:"firstname"`
+	SecondName string `json:"secondname"`
+	Surname    string `json:"surname"`
+	BirthDate  string `json:"birthdate"`
+	Email      string `json:"email"`
+	Login      string `json:"login"`
+	Password   string `json:"password"`
+	Is_aproved bool   `json:"is_aproved"`
 }
 
 func GetUsers(db *pgxpool.Pool) ([]User, error) {
@@ -52,4 +56,93 @@ func GetUsers(db *pgxpool.Pool) ([]User, error) {
 	log.Println("Найдено пользователей:", len(users))
 
 	return users, nil
+}
+
+func AddInputUser(db *pgxpool.Pool) error {
+	query := `
+		INSERT INTO users (first_name, second_name, surname, birth_date, email, login, password, is_aproved)	
+		values ($1, $2, $3, $4, $5, $6, $7, false)
+		returning id;
+	`
+	var id int
+	user, err := InputUser()
+	if err != nil {
+		log.Println(err)
+	}
+	error := db.QueryRow(context.Background(), query, user.FirstName, user.SecondName, user.Surname, user.BirthDate, user.Email, user.Login, user.Password).Scan(&id)
+	if error != nil {
+		log.Println(error)
+	} else {
+		log.Println("Добавлен новый пользователь! ID: ", id)
+	}
+	return nil
+}
+
+func AddUserByForm(db *pgxpool.Pool, user User) error {
+	query := `
+		INSERT INTO users (first_name, second_name, surname, birth_date, email, login, password, is_aproved)	
+		values ($1, $2, $3, $4, $5, $6, $7, false)
+		returning id;
+	`
+	var id int
+
+	error := db.QueryRow(context.Background(), query, user.FirstName, user.SecondName, user.Surname, user.BirthDate, user.Email, user.Login, user.Password).Scan(&id)
+	if error != nil {
+		log.Println(error)
+	} else {
+		log.Println("Добавлен новый пользователь! ID: ", id)
+	}
+	return nil
+}
+
+func RegisterUser(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	pool, err := db.ConnectDB()
+	if err != nil {
+		log.Println(err)
+	}
+
+	var req User
+	reqErr := json.NewDecoder(r.Body).Decode(&req)
+	if reqErr != nil {
+		http.Error(w, "Invalid request", http.StatusBadRequest)
+		fmt.Println("Invalid request", reqErr)
+		return
+	}
+
+	if req.FirstName == "" || req.Surname == "" || req.BirthDate == "" ||
+		req.Email == "" || req.Login == "" || req.Password == "" {
+		http.Error(w, "Empty fields", http.StatusBadRequest)
+		fmt.Println("Empty fields", reqErr)
+		return
+	}
+
+	addUserErr := AddUserByForm(pool, req)
+	if addUserErr != nil {
+		log.Println(addUserErr)
+	}
+
+}
+
+func InputUser() (user User, err error) {
+	fmt.Println("Ввод данных пользователя")
+	fmt.Println("Имя:")
+	fmt.Scan(&user.FirstName)
+	fmt.Println("Отчество:")
+	fmt.Scan(&user.SecondName)
+	fmt.Println("Фамилия:")
+	fmt.Scan(&user.Surname)
+	fmt.Println("Дата рождения:")
+	fmt.Scan(&user.BirthDate)
+	fmt.Println("Email")
+	fmt.Scan(&user.Email)
+	fmt.Println("Login")
+	fmt.Scan(&user.Login)
+	fmt.Println("Password")
+	fmt.Scan(&user.Password)
+
+	return user, nil
 }
