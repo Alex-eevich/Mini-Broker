@@ -127,6 +127,13 @@ func RegisterUser(w http.ResponseWriter, r *http.Request) {
 
 }
 
+func VerifiedUser(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+
+}
+
 func InputUser() (user User, err error) {
 	fmt.Println("Ввод данных пользователя")
 	fmt.Println("Имя:")
