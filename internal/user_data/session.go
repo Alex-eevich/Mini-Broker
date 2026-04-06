@@ -6,6 +6,7 @@ import (
 	"log"
 	"mini-broker/internal/db"
 	"net/http"
+	"strings"
 
 	/*"encoding/json"*/
 	"github.com/golang-jwt/jwt/v5"
@@ -14,6 +15,10 @@ import (
 	/*"net/http"*/
 	"time"
 )
+
+type Handler struct {
+	DB *pgxpool.Pool
+}
 
 var jwtKey = []byte("session_key")
 
@@ -67,10 +72,69 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 		log.Println(err)
 		http.Error(w, "Ошибка генерации токена", http.StatusInternalServerError)
 		return
+	} else {
+		log.Println("Был сгенерирован токен при входе в систему. Токен = ", token)
 	}
 
 	// отправка токена клиента
 	json.NewEncoder(w).Encode(map[string]string{
 		"token": token,
+	})
+}
+
+func ParseToken(tokenStr string) (int, error) {
+	token, err := jwt.Parse(tokenStr, func(token *jwt.Token) (interface{}, error) {
+		return jwtKey, nil
+	})
+	if err != nil || !token.Valid {
+		return 0, err
+	}
+
+	claims := token.Claims.(jwt.MapClaims)
+	userID := int(claims["user_id"].(float64))
+
+	return userID, nil
+}
+
+func AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		authHeader := r.Header.Get("Authorization")
+		if authHeader == "" {
+			http.Error(w, "Missing token", http.StatusUnauthorized)
+			return
+		}
+		tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
+
+		userID, err := ParseToken(tokenStr)
+		if err != nil {
+			http.Error(w, "Invalid token", http.StatusUnauthorized)
+			return
+		}
+		ctx := context.WithValue(r.Context(), "user_id", userID)
+
+		next.ServeHTTP(w, r.WithContext(ctx))
+
+	}
+}
+
+func (h *Handler) MeHandler(w http.ResponseWriter, r *http.Request) {
+
+	userID := r.Context().Value("user_id").(int)
+
+	var username string
+
+	err := h.DB.QueryRow(
+		r.Context(),
+		"SELECT username FROM users WHERE id=$1",
+		userID,
+	).Scan(&username)
+
+	if err != nil {
+		http.Error(w, "user not found", 404)
+		return
+	}
+
+	json.NewEncoder(w).Encode(map[string]string{
+		"username": username,
 	})
 }

@@ -1,10 +1,53 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>$Title$</title>
+    <meta charset="UTF-8">
+    <title>Registration</title>
 </head>
 <body>
-$END$
+<h1>Registration</h1>
+<form id = "registrationForm">
+    <label>FirstName:<input type="text" name="FirstName" required></label><br>
+    <label>SecondName:<input type="text" name="SecondName" required></label><br>
+    <label>Surname:<input type="text" name="Surname" required></label><br>
+    <label>BirthDate:<input type="text" name="BirthDate" required></label><br>
+    <label>Email:<input type="text" name="Email" required></label><br>
+    <label>Login:<input type="text" name="Login" required></label><br>
+    <label>Password:<input type="text" name="Password" required></label><br>
+    <button type = "submit">Registration</button>
+</form>
+
+<div id="result"></div>
+
+<script>
+    const form = document.getElementById('registrationForm');
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const formData = new FormData(form);
+        const data = {
+            FirstName:  formData.get('FirstName'),
+            SecondName: formData.get('SecondName'),
+            Surname:    formData.get('Surname'),
+            BirthDate:  formData.get('BirthDate'),
+            Email:      formData.get('Email'),
+            Login:      formData.get('Login'),
+            Password:   formData.get('Password')
+        };
+
+        const res = await fetch('/register', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+
+        const resultDiv = document.getElementById('result');
+        if (res.ok) {
+            resultDiv.innerText = "User registered!";
+        } else {
+            resultDiv.innerText = "Error: " + res.statusText;
+        }
+    });
+</script>
 </body>
 </html>

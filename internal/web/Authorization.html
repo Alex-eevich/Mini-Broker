@@ -1,10 +1,47 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>$Title$</title>
+    <meta charset="UTF-8">
+    <title>Authorization</title>
 </head>
 <body>
-$END$
+<h1>Authorization</h1>
+<form id = "authorizationForm">
+    <label>Login:<input type="text" name="Login" required></label><br>
+    <label>Password:<input type="text" name="Password" required></label><br>
+    <button type = "submit">Autorization</button>
+</form>
+
+<div id="result"></div>
+
+<script>
+    const form = document.getElementById('authorizationForm');
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+
+        const formData = new FormData(form);
+        const data = {
+            Login:      formData.get('Login'),
+            Password:   formData.get('Password')
+        };
+
+        const res = await fetch('/auth', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data)
+        });
+
+        const resultDiv = document.getElementById('result');
+        if (res.ok) {
+            const json = await res.json()
+            localStorage.setItem("token", json.token)
+            resultDiv.innerText = "User authorized! " + json.token;
+
+            //window.location.href = "/profile.html";
+        } else {
+            resultDiv.innerText = "Error: " + res.statusText;
+        }
+    });
+</script>
 </body>
 </html>

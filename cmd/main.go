@@ -2,14 +2,21 @@ package main
 
 import (
 	"log"
+	"mini-broker/internal/db"
 	"mini-broker/internal/user_data"
 	"net/http"
 )
 
 func main() {
+	pool, _ := db.ConnectDB()
+	userhandler := &user_data.Handler{
+		DB: pool,
+	}
 	http.Handle("/", http.FileServer(http.Dir("./internal/web")))
 	http.HandleFunc("/register", user_data.RegisterUser)
+	http.HandleFunc("/auth", user_data.LoginHandler)
 	http.HandleFunc("/verified", user_data.VerifiedUser)
+	http.HandleFunc("/me", user_data.AuthMiddleware(userhandler.MeHandler))
 
 	log.Println("Server started on :8080")
 	log.Fatal(http.ListenAndServe(":8080", nil))
