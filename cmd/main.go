@@ -16,7 +16,7 @@ func main() {
 	http.HandleFunc("/register", user_data.RegisterUser)
 	http.HandleFunc("/auth", user_data.LoginHandler)
 	http.HandleFunc("/verified", user_data.VerifiedUser)
-	http.HandleFunc("/me", user_data.AuthMiddleware(userhandler.MeHandler))
+	http.HandleFunc("/profile", user_data.AuthMiddleware(userhandler.MeHandler))
 
 	log.Println("Server started on :8080")
 	log.Fatal(http.ListenAndServe(":8080", nil))

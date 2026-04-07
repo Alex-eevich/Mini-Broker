@@ -35,9 +35,9 @@
         if (res.ok) {
             const json = await res.json()
             localStorage.setItem("token", json.token)
-            resultDiv.innerText = "User authorized! " + json.token;
 
-            //window.location.href = "/profile.html";
+            resultDiv.innerText = "User authorized! " + json.token;
+            window.location.href = "/profile.html";
         } else {
             resultDiv.innerText = "Error: " + res.statusText;
         }

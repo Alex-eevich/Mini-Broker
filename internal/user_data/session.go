@@ -121,20 +121,22 @@ func (h *Handler) MeHandler(w http.ResponseWriter, r *http.Request) {
 
 	userID := r.Context().Value("user_id").(int)
 
-	var username string
-
+	var username, first_name, second_name, surname, BirthDate, Email string
 	err := h.DB.QueryRow(
 		r.Context(),
-		"SELECT username FROM users WHERE id=$1",
+		"SELECT first_name, second_name, surname, birth_date, email FROM users WHERE id=$1",
 		userID,
-	).Scan(&username)
+	).Scan(&first_name, &second_name, &surname, &BirthDate, &Email)
 
 	if err != nil {
 		http.Error(w, "user not found", 404)
 		return
 	}
 
+	username = first_name + " " + second_name + " " + surname
 	json.NewEncoder(w).Encode(map[string]string{
-		"username": username,
+		"Username":  username,
+		"BirthDate": BirthDate,
+		"Email":     Email,
 	})
 }
