@@ -9,7 +9,10 @@
     <div>Username: <span id = "Username"></span></div>
     <div>Birthday: <span id = "Birthday"></span></div>
     <div>Email: <span id = "Email"></span></div>
+    <button id = "Verify">Verification</button>
+    <div id="VerifyStatus"></div>
     <script>
+        const button = document.getElementById("Verify");
         window.onload = async () => {
 
             const token = localStorage.getItem("token")
@@ -26,6 +29,26 @@
             document.getElementById("Birthday").innerText = user_data.BirthDate
             document.getElementById("Email").innerText = user_data.Email
         };
+
+
+        button.addEventListener('click', async (e) => {
+
+            const resultDiv = document.getElementById('VerifyStatus');
+            resultDiv.innerText = "Нажата кнопочка";
+            const token = localStorage.getItem("token")
+
+            const res = await fetch("/verified", {
+                headers: {
+                    Authorization: "Bearer " + token
+                }
+            })
+
+            if (res.ok) {
+                resultDiv.innerText = "Email подтвержден!";
+            } else {
+                resultDiv.innerText = "Error: " + res.statusText;
+            }
+        });
     </script>
 </body>
 

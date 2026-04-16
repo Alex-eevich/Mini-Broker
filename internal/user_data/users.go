@@ -69,6 +69,7 @@ func AddInputUser(db *pgxpool.Pool) error {
 	if err != nil {
 		log.Println(err)
 	}
+	user.Password = hashing(user.Password)
 	error := db.QueryRow(context.Background(), query, user.FirstName, user.SecondName, user.Surname, user.BirthDate, user.Email, user.Login, user.Password).Scan(&id)
 	if error != nil {
 		log.Println(error)
@@ -86,6 +87,7 @@ func AddUserByForm(db *pgxpool.Pool, user User) error {
 	`
 	var id int
 
+	user.Password = hashing(user.Password)
 	error := db.QueryRow(context.Background(), query, user.FirstName, user.SecondName, user.Surname, user.BirthDate, user.Email, user.Login, user.Password).Scan(&id)
 	if error != nil {
 		log.Println(error)
@@ -123,13 +125,6 @@ func RegisterUser(w http.ResponseWriter, r *http.Request) {
 	addUserErr := AddUserByForm(pool, req)
 	if addUserErr != nil {
 		log.Println(addUserErr)
-	}
-
-}
-
-func VerifiedUser(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}
 
 }

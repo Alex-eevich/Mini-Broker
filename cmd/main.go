@@ -12,10 +12,16 @@ func main() {
 	userhandler := &user_data.Handler{
 		DB: pool,
 	}
+	sender := &user_data.SMTPEmailSender{}
+	emailhandler := &user_data.EmailService{
+		Sender: sender,
+		DB:     pool,
+	}
 	http.Handle("/", http.FileServer(http.Dir("./internal/web")))
 	http.HandleFunc("/register", user_data.RegisterUser)
 	http.HandleFunc("/auth", user_data.LoginHandler)
-	http.HandleFunc("/verified", user_data.VerifiedUser)
+	http.HandleFunc("/verify-email", emailhandler.VerifyEmail)
+	http.HandleFunc("/verified", user_data.AuthMiddleware(emailhandler.VerifiedUser))
 	http.HandleFunc("/profile", user_data.AuthMiddleware(userhandler.MeHandler))
 
 	log.Println("Server started on :8080")
