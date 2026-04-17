@@ -10,41 +10,70 @@
     <div>Birthday: <span id = "Birthday"></span></div>
     <div>Email: <span id = "Email"></span></div>
     <button id = "Verify">Verification</button>
-    <div id="VerifyStatus"></div>
+    <form id = "AddTokenForm">
+        <label>Token:<input type="text" name="Token" required></label><br>
+        <button type = "submit">Add token for trade</button>
+    </form>
+    <div id="ProfileStatus"></div>
     <script>
         const button = document.getElementById("Verify");
+
         window.onload = async () => {
-
             const token = localStorage.getItem("token")
-
             const res = await fetch("/profile", {
                 headers: {
                     Authorization: "Bearer " + token
                 }
             })
-
             const user_data = await res.json()
-
             document.getElementById("Username").innerText = user_data.Username
             document.getElementById("Birthday").innerText = user_data.BirthDate
             document.getElementById("Email").innerText = user_data.Email
         };
 
-
         button.addEventListener('click', async (e) => {
-
-            const resultDiv = document.getElementById('VerifyStatus');
+            const resultDiv = document.getElementById('ProfileStatus');
             resultDiv.innerText = "Нажата кнопочка";
             const token = localStorage.getItem("token")
-
             const res = await fetch("/verified", {
                 headers: {
                     Authorization: "Bearer " + token
                 }
             })
-
             if (res.ok) {
                 resultDiv.innerText = "Email подтвержден!";
+            } else {
+                resultDiv.innerText = "Error: " + res.statusText;
+            }
+        });
+
+        const form = document.getElementById('AddTokenForm');
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const formData = new FormData(form);
+            const token = localStorage.getItem("token")
+            const data = {
+                token:      formData.get('Token'),
+            };
+            const resultDiv = document.getElementById('ProfileStatus');
+            resultDiv.innerText = "Нажата кнопочка!";
+
+
+            const res = await fetch('/addtoken', {
+                method: 'POST',
+                headers: {
+                    Authorization: "Bearer " + token,
+                    'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+
+            if (res.ok) {
+                resultDiv.innerText = "The token has been added!";
+            } else if (res.status === 403) {
+                resultDiv.innerText = "Error: The user has not been verified!";
+            }  else if (res.status === 401) {
+                resultDiv.innerText = "Error: The token has not been verified!";
             } else {
                 resultDiv.innerText = "Error: " + res.statusText;
             }

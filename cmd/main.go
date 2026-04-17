@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"mini-broker/internal/Token"
 	"mini-broker/internal/db"
 	"mini-broker/internal/user_data"
 	"net/http"
@@ -17,12 +18,16 @@ func main() {
 		Sender: sender,
 		DB:     pool,
 	}
+	tradetokenhandler := &Token.Token{
+		DB: pool,
+	}
 	http.Handle("/", http.FileServer(http.Dir("./internal/web")))
 	http.HandleFunc("/register", user_data.RegisterUser)
 	http.HandleFunc("/auth", user_data.LoginHandler)
 	http.HandleFunc("/verify-email", emailhandler.VerifyEmail)
 	http.HandleFunc("/verified", user_data.AuthMiddleware(emailhandler.VerifiedUser))
 	http.HandleFunc("/profile", user_data.AuthMiddleware(userhandler.MeHandler))
+	http.HandleFunc("/addtoken", Token.AuthMiddleware(tradetokenhandler.AddToken))
 
 	log.Println("Server started on :8080")
 	log.Fatal(http.ListenAndServe(":8080", nil))

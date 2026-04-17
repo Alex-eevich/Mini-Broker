@@ -195,3 +195,19 @@ func (s *EmailService) VerifyEmail(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html")
 	w.Write([]byte(html))
 }
+
+func (s *EmailService) VerifyCheck(user_id int) bool {
+	var is_aproved bool
+	query := `
+		select is_aproved from users u where id = $1;`
+	errSelect := s.DB.QueryRow(context.Background(), query, user_id).Scan(&is_aproved)
+	if errSelect != nil {
+		log.Println("VerifyCheck: Ошибка проверки верификации пользователя", errSelect)
+		return false
+	}
+	if is_aproved == true {
+		return true
+	} else {
+		return false
+	}
+}
