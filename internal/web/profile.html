@@ -74,6 +74,8 @@
                 resultDiv.innerText = "Error: The user has not been verified!";
             }  else if (res.status === 401) {
                 resultDiv.innerText = "Error: The token has not been verified!";
+            } else if (res.status === 402) {
+                resultDiv.innerText = "Error: У вас уже есть токен!";
             } else {
                 resultDiv.innerText = "Error: " + res.statusText;
             }

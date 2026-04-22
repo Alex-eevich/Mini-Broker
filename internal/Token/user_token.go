@@ -93,6 +93,20 @@ func (t *Token) AddToken(w http.ResponseWriter, r *http.Request) {
 	}
 	defer conn.Rollback(context.Background())
 
+	var token_body string
+	query := `
+		select id from user_tradetoken
+		where token = $1;`
+	selectErr := conn.QueryRow(context.Background(), query, trade_token_var).Scan(&token_body)
+	if selectErr != nil {
+		log.Println(selectErr)
+	}
+	if token_body != "" {
+		http.Error(w, "Токен уже есть у пользователя!", 402)
+		log.Println("Токен уже есть у пользователя! ")
+		return
+	}
+
 	_, err = conn.Exec(context.Background(), `
 		insert into user_tradetoken (user_id, token, create_time, status)
 		values ($1, $2, now(), 'open')
@@ -107,6 +121,41 @@ func (t *Token) AddToken(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "commit insert token error", 500)
 		log.Println("commit insert token error", err.Error())
 		return
+	}
+
+	client := tbank.NewClientFromToken(trade_token_var)
+	db_conn := tbank.DB_connect{
+		DB: pool,
+	}
+	accounts, err := client.GetListAccounts()
+	if err != nil {
+		http.Error(w, "get account error", 500)
+		return
+	}
+	if accounts == "" {
+		addedAccount, err := client.OpenSandboxAccount()
+		if err != nil {
+			http.Error(w, "add account error", 500)
+			return
+		}
+		log.Println("AddToken.AddAccount: Добавлен торговый счет для пользователя", user_id)
+		addRes := db_conn.AddTradeAccountDB(addedAccount, user_id)
+		if addRes != nil {
+			log.Println("AddTradeAccountDB", addRes)
+			http.Error(w, "AddTradeAccountDB: ошибка добавления торгового счета в БД", 500)
+			return
+		} else {
+			log.Println("AddTradeAccountDB:", addedAccount, " добавлен в БД")
+		}
+	} else {
+		addRes := db_conn.AddTradeAccountDB(accounts, user_id)
+		if addRes != nil {
+			log.Println("AddTradeAccountDB", addRes)
+			http.Error(w, "AddTradeAccountDB: ошибка добавления торгового счета в БД", 500)
+			return
+		} else {
+			log.Println("AddTradeAccountDB:", accounts, " добавлен в БД")
+		}
 	}
 	w.WriteHeader(http.StatusOK)
 }

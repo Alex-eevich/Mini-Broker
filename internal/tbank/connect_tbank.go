@@ -5,7 +5,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"time"
 )
@@ -16,9 +15,9 @@ type Config struct {
 }
 
 type Client struct {
-	token   string
-	baseURL string
-	client  *http.Client
+	Token   string
+	BaseURL string
+	Client  *http.Client
 }
 
 func Load(token string) *Config {
@@ -30,19 +29,15 @@ func Load(token string) *Config {
 
 func NewClient(token, baseURL string) *Client {
 	return &Client{
-		token:   token,
-		baseURL: baseURL,
-		client:  &http.Client{},
+		Token:   token,
+		BaseURL: baseURL,
+		Client:  &http.Client{},
 	}
 }
 
-func (c *Config) ConnectTbank(token string) *Client {
-	connect := Load(token)
-	if connect.Token == "" {
-		log.Println("Отсутствует token для подключения к песочнице")
-	}
-	Client := NewClient(connect.Token, connect.BaseURL)
-	return Client
+func NewClientFromToken(token string) *Client {
+	cfg := Load(token)
+	return NewClient(cfg.Token, cfg.BaseURL)
 }
 
 func (c *Client) do(method, path string, body any, out any) error {
@@ -60,17 +55,17 @@ func (c *Client) do(method, path string, body any, out any) error {
 
 	req, err := http.NewRequest(
 		method,
-		fmt.Sprintf("%s/%s", c.baseURL, path),
+		fmt.Sprintf("%s/%s", c.BaseURL, path),
 		buf,
 	)
 	if err != nil {
 		return err
 	}
 
-	req.Header.Set("Authorization", "Bearer "+c.token)
+	req.Header.Set("Authorization", "Bearer "+c.Token)
 	req.Header.Set("Content-Type", "application/json")
 
-	resp, err := c.client.Do(req)
+	resp, err := c.Client.Do(req)
 	if err != nil {
 		return err
 	}
@@ -79,6 +74,10 @@ func (c *Client) do(method, path string, body any, out any) error {
 
 	if resp.StatusCode >= 300 {
 		return fmt.Errorf("API error: %s", resp.Status)
+	}
+
+	if out != nil {
+		return json.NewDecoder(resp.Body).Decode(out)
 	}
 
 	return nil
