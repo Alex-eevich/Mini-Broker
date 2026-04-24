@@ -65,6 +65,9 @@ func (c *Client) do(method, path string, body any, out any) error {
 	req.Header.Set("Authorization", "Bearer "+c.Token)
 	req.Header.Set("Content-Type", "application/json")
 
+	// Для отладки новых запросов
+	//log.Println(req)
+
 	resp, err := c.Client.Do(req)
 	if err != nil {
 		return err

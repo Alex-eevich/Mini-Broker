@@ -4,8 +4,10 @@ import (
 	"log"
 	"mini-broker/internal/Token"
 	"mini-broker/internal/db"
+	"mini-broker/internal/tbank"
 	"mini-broker/internal/user_data"
 	"net/http"
+	"os"
 )
 
 func main() {
@@ -21,6 +23,8 @@ func main() {
 	tradetokenhandler := &Token.Token{
 		DB: pool,
 	}
+	trade_admin_token := os.Getenv("TINKOFF_TOKEN")
+	client := tbank.NewClientFromToken(trade_admin_token)
 	http.Handle("/", http.FileServer(http.Dir("./internal/web")))
 	http.HandleFunc("/register", user_data.RegisterUser)
 	http.HandleFunc("/auth", user_data.LoginHandler)
@@ -28,6 +32,7 @@ func main() {
 	http.HandleFunc("/verified", user_data.AuthMiddleware(emailhandler.VerifiedUser))
 	http.HandleFunc("/profile", user_data.AuthMiddleware(userhandler.MeHandler))
 	http.HandleFunc("/addtoken", Token.AuthMiddleware(tradetokenhandler.AddToken))
+	http.HandleFunc("/adminShares", client.Shares)
 
 	log.Println("Server started on :8080")
 	log.Fatal(http.ListenAndServe(":8080", nil))

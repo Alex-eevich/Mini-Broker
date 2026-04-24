@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Main page</title>
+</head>
+<body>
+    <h1>Admin Panel</h1>
+    <button id="updateTickets" type = "submit">Обновить Ticket's</button>
+
+    <div id="result"></div>
+
+    <script>
+        const button = document.getElementById('updateTickets');
+        button.addEventListener('click', async (e) => {
+            const res = await fetch('/adminShares');
+
+            const resultDiv = document.getElementById('result');
+            if (res.ok) {
+                resultDiv.innerText = "Tickets updated!";
+            } else {
+                resultDiv.innerText = "Error: " + res.statusText;
+            }
+        });
+    </script>
+</body>
+</html>

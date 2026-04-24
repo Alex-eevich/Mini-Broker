@@ -24,7 +24,5 @@ func ConnectDB() (*pgxpool.Pool, error) {
 		return nil, fmt.Errorf("Ошибка связи с БД: %w", err)
 	}
 
-	fmt.Println("БД успешно подключена!")
-
 	return pool, nil
 }
