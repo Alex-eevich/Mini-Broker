@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+
+    <link href="https://cdn.jsdelivr.net/npm/tom-select/dist/css/tom-select.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/tom-select/dist/js/tom-select.complete.min.js"></script>
+
+    <title>Trade Panel</title>
+</head>
+<body>
+    <h3>Select tickers</h3>
+
+    <select id="ticker1"></select>
+    <select id="ticker2"></select>
+    <select id="ticker3"></select>
+    <select id="ticker4"></select>
+    <input type="datetime-local" id="eventFrom" name="event" min="2024-05-01T09:00" max="2024-12-31T18:00">
+    <input type="datetime-local" id="eventTo" name="event" min="2024-05-01T09:00" max="2024-12-31T18:00">
+    <select id="interval"></select>
+
+    <br><br>
+
+    <button id="send">Send</button>
+    <div id="result"></div>
+
+    <script>
+        const button = document.getElementById("send");
+        const token = localStorage.getItem("token");
+        let selects = []
+
+        async function loadTickers() {
+            const res = await fetch("/api/tickers")
+            const tickers = await res.json()
+
+            const options = tickers.map(t => ({
+                value: t,
+                text: t
+            }))
+            const intervals = [
+                { value: "1m", text: "1 минута" },
+                { value: "5m", text: "5 минут" },
+                { value: "15m", text: "15 минут" },
+                { value: "1h", text: "1 час" },
+                { value: "1d", text: "1 день" },
+                { value: "1w", text: "1 неделя" },
+            ]
+
+            selects = [
+                new TomSelect("#ticker1", { options }),
+                new TomSelect("#ticker2", { options }),
+                new TomSelect("#ticker3", { options }),
+                new TomSelect("#ticker4", { options }),
+                new TomSelect("#interval", { options: intervals })
+            ]
+        }
+
+        button.addEventListener('click', async (e) => {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerText = "Нажата кнопочка!";
+            const payload = {
+                ticker1: selects[0].getValue(),
+                ticker2: selects[1].getValue(),
+                ticker3: selects[2].getValue(),
+                ticker4: selects[3].getValue(),
+                eventFrom: document.getElementById("eventFrom").value,
+                eventTo: document.getElementById("eventTo").value,
+                interval: selects[4].getValue()
+            }
+
+            const res = await fetch("/api/getGraph", {
+                method: "POST",
+                headers: {
+                    Authorization: "Bearer " + token,
+                    'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            })
+            if (res.ok) {
+                resultDiv.innerText = "Фильтр корректный!";
+            } else {
+                resultDiv.innerText = "Error: " + res.statusText;
+            }
+        });
+
+
+
+        loadTickers()
+
+    </script>
+</body>
+</html>

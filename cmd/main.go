@@ -33,6 +33,8 @@ func main() {
 	http.HandleFunc("/profile", user_data.AuthMiddleware(userhandler.MeHandler))
 	http.HandleFunc("/addtoken", Token.AuthMiddleware(tradetokenhandler.AddToken))
 	http.HandleFunc("/adminShares", client.Shares)
+	http.HandleFunc("/api/tickers", client.ListTickers)
+	http.HandleFunc("/api/getGraph", client.GetCandles)
 
 	log.Println("Server started on :8080")
 	log.Fatal(http.ListenAndServe(":8080", nil))

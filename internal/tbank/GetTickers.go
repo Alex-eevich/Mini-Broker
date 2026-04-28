@@ -2,6 +2,7 @@ package tbank
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"mini-broker/internal/db"
@@ -83,4 +84,44 @@ func AddTicker(instrument instruments) error {
 	conn.Commit(context.Background())
 
 	return nil
+}
+
+func (c *Client) GetTickers() ([]string, error) {
+	pool, _ := db.ConnectDB()
+	db_conn := DB_connect{
+		DB: pool,
+	}
+
+	conn, err := db_conn.DB.Begin(context.Background())
+	if err != nil {
+		return nil, err
+	}
+
+	tickers, tickErr := conn.Query(context.Background(),
+		`select ticker from tickers`)
+	defer tickers.Close()
+	if tickErr != nil {
+		return nil, tickErr
+	}
+	var listTickers []string
+	for tickers.Next() {
+		var t string
+		err := tickers.Scan(&t)
+		if err != nil {
+			return nil, err
+		}
+		listTickers = append(listTickers, t)
+	}
+
+	return listTickers, nil
+}
+
+func (c *Client) ListTickers(w http.ResponseWriter, _ *http.Request) {
+	tickers, err := c.GetTickers()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(tickers)
 }
