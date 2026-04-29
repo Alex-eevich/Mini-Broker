@@ -7,7 +7,10 @@ import (
 	"mini-broker/internal/db"
 	"mini-broker/internal/user_data"
 	"net/http"
+	"strconv"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -27,10 +30,44 @@ type Request struct {
 }
 
 type Item struct {
+	Ticker    string
 	Figi      string `json:"figi"`
-	EventFrom string `json:"eventFrom"`
-	EventTo   string `json:"eventTo"`
+	EventFrom string `json:"from"`
+	EventTo   string `json:"to"`
 	Interval  string `json:"interval"`
+}
+
+type MoneyValue struct {
+	Units string `json:"units"`
+	Nano  int32  `json:"nano"`
+}
+
+type Candle struct {
+	Time   time.Time  `json:"time"`
+	Open   MoneyValue `json:"open"`
+	High   MoneyValue `json:"high"`
+	Low    MoneyValue `json:"low"`
+	Close  MoneyValue `json:"close"`
+	Volume int64      `json:"volume,string"`
+}
+
+type ResponseItemAPI struct {
+	Ticker  string   `json:"ticker"`
+	Candles []Candle `json:"candles"`
+}
+
+type CandleRes struct {
+	Time  int64   `json:"time"`
+	Close float64 `json:"close"`
+}
+
+type ResponseItem struct {
+	Ticker    string      `json:"ticker"`
+	CandleRes []CandleRes `json:"candles"`
+}
+
+type Results struct {
+	Results []ResponseItem `json:"results"`
 }
 
 func (c *Client) GetCandles(w http.ResponseWriter, r *http.Request) {
@@ -45,7 +82,6 @@ func (c *Client) GetCandles(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	token := strings.TrimPrefix(authHeader, "Bearer ")
-	// Нужно использовать user_id для поиска трейд-токена. Он нужен для создания запроса за кенделсами
 	user_id, err := user_data.ParseToken(token)
 	if err != nil {
 		log.Println(err)
@@ -63,15 +99,11 @@ func (c *Client) GetCandles(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, reqErr.Error(), http.StatusBadRequest)
 		return
 	}
-	conn, errTa := pool.Begin(context.Background())
-	if errTa != nil {
-		log.Println(errTa.Error())
-	}
 	var trade_token string
 	query := `
 		select token from user_tradetoken
 		where user_id = $1;`
-	selectErr := conn.QueryRow(context.Background(), query, user_id).Scan(&trade_token)
+	selectErr := pool.QueryRow(context.Background(), query, user_id).Scan(&trade_token)
 	if selectErr != nil {
 		log.Println(selectErr.Error())
 	}
@@ -79,11 +111,22 @@ func (c *Client) GetCandles(w http.ResponseWriter, r *http.Request) {
 	log.Println(trade_token)
 	log.Println(filt)
 	reqJson := c.RebuildJsonFilter(filt, pool)
-	log.Println(reqJson.Requests[0])
-	log.Println(reqJson.Requests[1])
-	log.Println(reqJson.Requests[2])
-	log.Println(reqJson.Requests[3])
+	for _, req := range reqJson.Requests {
+		log.Println(req)
+	}
+	candles, err := c.TbankGetCandles(reqJson)
+	resultsCandle := BuildResponse(candles)
+	log.Println(resultsCandle)
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
+	errdecode := json.NewEncoder(w).Encode(resultsCandle)
+	if errdecode != nil {
+		log.Println("encode error:", errdecode)
+	} else {
+		log.Println("Отдали ответ на /getGraph/")
+	}
+	log.Println("DONE RESPONSE")
+	return
 }
 
 func (c *Client) RebuildJsonFilter(filter Filter, pool *pgxpool.Pool) Request {
@@ -92,10 +135,6 @@ func (c *Client) RebuildJsonFilter(filter Filter, pool *pgxpool.Pool) Request {
 		filter.Ticker2,
 		filter.Ticker3,
 		filter.Ticker4,
-	}
-	conn, err := pool.Begin(context.Background())
-	if err != nil {
-		log.Println(err)
 	}
 
 	var figi string
@@ -116,15 +155,19 @@ func (c *Client) RebuildJsonFilter(filter Filter, pool *pgxpool.Pool) Request {
 			continue
 		}
 
-		query := `
-		select figi from tickers
-		where ticker = $1;`
-		selectErr := conn.QueryRow(context.Background(), query, ticker).Scan(&figi)
-		if selectErr != nil {
-			log.Println(selectErr.Error())
+		err := pool.QueryRow(
+			context.Background(),
+			`select figi from tickers where ticker = $1`,
+			ticker,
+		).Scan(&figi)
+
+		if err != nil {
+			log.Println(err)
+			continue
 		}
 
 		req.Requests = append(req.Requests, Item{
+			Ticker:    ticker,
 			Figi:      figi,
 			EventFrom: eventFrom,
 			EventTo:   eventTo,
@@ -132,4 +175,75 @@ func (c *Client) RebuildJsonFilter(filter Filter, pool *pgxpool.Pool) Request {
 		})
 	}
 	return req
+}
+
+func (c *Client) TbankGetCandles(request Request) ([]ResponseItemAPI, error) {
+	var wg sync.WaitGroup
+	results := make([]ResponseItemAPI, len(request.Requests))
+	errors := make([]error, len(request.Requests))
+
+	wg.Add(len(request.Requests))
+
+	for i, req := range request.Requests {
+		go func(i int, req Item) {
+			defer wg.Done()
+
+			res, errGoroutines := c.GorouteGetCandles(req)
+			if errGoroutines != nil {
+				errors[i] = errGoroutines
+				return
+			}
+			results[i] = res
+
+		}(i, req)
+	}
+	wg.Wait()
+	return results, nil
+}
+
+func (c *Client) GorouteGetCandles(req Item) (ResponseItemAPI, error) {
+
+	log.Println(req.Ticker)
+
+	var response ResponseItemAPI
+	errApi := c.do(
+		"POST",
+		"tinkoff.public.invest.api.contract.v1.MarketDataService/GetCandles",
+		req,
+		&response,
+	)
+	if errApi != nil {
+		return ResponseItemAPI{}, errApi
+	} else {
+		log.Println("GorouteGetCandles: Запрос на Candles отправлен успешно!")
+	}
+	response.Ticker = req.Ticker
+	return response, nil
+}
+
+func BuildResponse(data []ResponseItemAPI) Results {
+	results := Results{}
+
+	for _, d := range data {
+		item := ResponseItem{
+			Ticker: d.Ticker,
+		}
+		for _, cd := range d.Candles {
+
+			closecandles := parseMoney(cd.Close)
+			item.CandleRes = append(item.CandleRes, CandleRes{
+				Time:  cd.Time.Unix(),
+				Close: closecandles,
+			})
+		}
+
+		results.Results = append(results.Results, item)
+	}
+	return results
+}
+
+func parseMoney(m MoneyValue) float64 {
+	units, _ := strconv.ParseFloat(m.Units, 64)
+	nano := float64(m.Nano) / 1e9
+	return units + nano
 }

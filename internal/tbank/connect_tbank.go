@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"time"
 )
@@ -31,7 +32,9 @@ func NewClient(token, baseURL string) *Client {
 	return &Client{
 		Token:   token,
 		BaseURL: baseURL,
-		Client:  &http.Client{},
+		Client: &http.Client{
+			Timeout: 10 * time.Second,
+		},
 	}
 }
 
@@ -66,7 +69,7 @@ func (c *Client) do(method, path string, body any, out any) error {
 	req.Header.Set("Content-Type", "application/json")
 
 	// Для отладки новых запросов
-	//log.Println(req)
+	log.Println(req)
 
 	resp, err := c.Client.Do(req)
 	if err != nil {

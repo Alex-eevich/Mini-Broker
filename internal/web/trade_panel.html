@@ -4,88 +4,143 @@
     <meta charset="UTF-8">
 
     <link href="https://cdn.jsdelivr.net/npm/tom-select/dist/css/tom-select.css" rel="stylesheet">
+    <link rel="stylesheet" href="/style/trade_panel.css">
     <script src="https://cdn.jsdelivr.net/npm/tom-select/dist/js/tom-select.complete.min.js"></script>
+    <script src="https://unpkg.com/lightweight-charts/dist/lightweight-charts.standalone.production.js"></script>
 
     <title>Trade Panel</title>
 </head>
 <body>
-    <h3>Select tickers</h3>
 
-    <select id="ticker1"></select>
-    <select id="ticker2"></select>
-    <select id="ticker3"></select>
-    <select id="ticker4"></select>
-    <input type="datetime-local" id="eventFrom" name="event" min="2024-05-01T09:00" max="2024-12-31T18:00">
-    <input type="datetime-local" id="eventTo" name="event" min="2024-05-01T09:00" max="2024-12-31T18:00">
-    <select id="interval"></select>
+<div class="gridPre">
+    <div class="gridPre">
+        <div>
+            <select id="ticker1"></select>
+            <select id="ticker2"></select>
+            <select id="ticker3"></select>
+            <select id="ticker4"></select>
+            <div class="gridDate">
+                <input type="datetime-local" id="eventFrom" name="event" min="2010-05-01T09:00" max="2026-12-31T18:00">
+                <input type="datetime-local" id="eventTo" name="event" min="2010-05-01T09:00" max="2026-12-31T18:00">
+            </div>
+            <select id="interval"></select>
 
-    <br><br>
+            <button id="send">Send</button>
+            <div id="result"></div>
+        </div>
+        <div></div>
+    </div>
+    <div class="gridPre">
+        <div></div>
+        <div></div>
+    </div>
+</div>
 
-    <button id="send">Send</button>
-    <div id="result"></div>
+<div class="forTitle">
+    <div></div>
+    <div id=graphTitle></div>
+    <div></div>
+</div>
 
-    <script>
-        const button = document.getElementById("send");
-        const token = localStorage.getItem("token");
-        let selects = []
+<div class="gridGraph">
+    <div id="chart1"></div>
+    <div id="chart2"></div>
+    <div id="chart3"></div>
+    <div id="chart4"></div>
+</div>
 
-        async function loadTickers() {
-            const res = await fetch("/api/tickers")
-            const tickers = await res.json()
 
-            const options = tickers.map(t => ({
-                value: t,
-                text: t
-            }))
-            const intervals = [
-                { value: "1m", text: "1 минута" },
-                { value: "5m", text: "5 минут" },
-                { value: "15m", text: "15 минут" },
-                { value: "1h", text: "1 час" },
-                { value: "1d", text: "1 день" },
-                { value: "1w", text: "1 неделя" },
-            ]
+<script>
+    const button = document.getElementById("send");
+    const token = localStorage.getItem("token");
+    let selects = []
 
-            selects = [
-                new TomSelect("#ticker1", { options }),
-                new TomSelect("#ticker2", { options }),
-                new TomSelect("#ticker3", { options }),
-                new TomSelect("#ticker4", { options }),
-                new TomSelect("#interval", { options: intervals })
-            ]
+    async function loadTickers() {
+        const res = await fetch("/api/tickers")
+        const tickers = await res.json()
+
+        const options = tickers.map(t => ({
+            value: t,
+            text: t
+        }))
+        const intervals = [
+            { value: "1m", text: "1 минута" },
+            { value: "5m", text: "5 минут" },
+            { value: "15m", text: "15 минут" },
+            { value: "1h", text: "1 час" },
+            { value: "1d", text: "1 день" },
+            { value: "1w", text: "1 неделя" },
+        ]
+
+        selects = [
+            new TomSelect("#ticker1", { options }),
+            new TomSelect("#ticker2", { options }),
+            new TomSelect("#ticker3", { options }),
+            new TomSelect("#ticker4", { options }),
+            new TomSelect("#interval", { options: intervals })
+        ]
+    }
+
+    button.addEventListener('click', async (e) => {
+        const resultDiv = document.getElementById('result');
+        resultDiv.innerText = "Идет загрузка...";
+        const payload = {
+            ticker1: selects[0].getValue(),
+            ticker2: selects[1].getValue(),
+            ticker3: selects[2].getValue(),
+            ticker4: selects[3].getValue(),
+            eventFrom: document.getElementById("eventFrom").value,
+            eventTo: document.getElementById("eventTo").value,
+            interval: selects[4].getValue()
         }
 
-        button.addEventListener('click', async (e) => {
-            const resultDiv = document.getElementById('result');
-            resultDiv.innerText = "Нажата кнопочка!";
-            const payload = {
-                ticker1: selects[0].getValue(),
-                ticker2: selects[1].getValue(),
-                ticker3: selects[2].getValue(),
-                ticker4: selects[3].getValue(),
-                eventFrom: document.getElementById("eventFrom").value,
-                eventTo: document.getElementById("eventTo").value,
-                interval: selects[4].getValue()
-            }
+        console.log("ПОКА ЛОГ идет")
+        const res = await fetch("/api/getGraph", {
+            method: "POST",
+            headers: {
+                Authorization: "Bearer " + token,
+                'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        })
+        const graphTitle = document.getElementById('graphTitle');
+        graphTitle.innerText = "Исторические данные:";
+        resultDiv.innerText = "";
 
-            const res = await fetch("/api/getGraph", {
-                method: "POST",
-                headers: {
-                    Authorization: "Bearer " + token,
-                    'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            })
-            if (res.ok) {
-                resultDiv.innerText = "Фильтр корректный!";
-            } else {
-                resultDiv.innerText = "Error: " + res.statusText;
-            }
-        });
+        console.log("STATUS:", res.status)
+        const data = await res.json()
+        console.log("RAW RESPONSE:", data)
+
+        drawCharts(data)
+    });
+
+    function drawCharts(data) {
+
+        const ids = ["chart1", "chart2", "chart3", "chart4"]
+
+        ids.forEach(id => {
+            document.getElementById(id).innerHTML = ""
+        })
+
+        data.results.forEach((item, index) => {
+
+            const container = document.getElementById(ids[index])
+
+            const chart = LightweightCharts.createChart(container)
+
+            const series = chart.addSeries(LightweightCharts.LineSeries)
+
+            const chartData = item.candles.map(c => ({
+                time: Math.floor(c.time),
+                value: c.close
+            }))
+
+            series.setData(chartData)
+        })
+    }
 
 
+    loadTickers()
 
-        loadTickers()
-
-    </script>
+</script>
 </body>
 </html>
