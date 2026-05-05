@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"net/smtp"
 	"strconv"
-	"strings"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -71,16 +70,7 @@ func (s *SMTPEmailSender) Send(email string, body string) error {
 
 func (s *EmailService) VerifiedUser(w http.ResponseWriter, r *http.Request) {
 
-	authHeader := r.Header.Get("Authorization")
-	if authHeader == "" {
-		http.Error(w, "Missing token", http.StatusUnauthorized)
-		return
-	}
-	token := strings.TrimPrefix(authHeader, "Bearer ")
-	userId, err := ParseToken(token)
-	if err != nil {
-		http.Error(w, "Invalid token", http.StatusUnauthorized)
-	}
+	userId := r.Context().Value("userId").(int)
 	tokenStr, genErr := generateVerifyToken()
 	if genErr != nil {
 		http.Error(w, "Error create verify token", http.StatusUnauthorized)
@@ -132,12 +122,7 @@ func (s *EmailService) InsertMessage(userId, token, messageType, email string) {
 }
 
 func (s *EmailService) VerifyEmail(w http.ResponseWriter, r *http.Request) {
-	token := r.URL.Query().Get("token")
-	if token == "" {
-		log.Println("TOKEN:", r.URL.Query().Get("token"))
-		http.Error(w, "Missing token", http.StatusUnauthorized)
-		return
-	}
+	token := r.Context().Value("token").(string)
 
 	var userID int
 	query := `

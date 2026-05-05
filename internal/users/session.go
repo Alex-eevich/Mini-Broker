@@ -112,6 +112,7 @@ func AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 		ctx := context.WithValue(r.Context(), "user_id", userID)
+		ctx = context.WithValue(ctx, "token", tokenStr)
 
 		next.ServeHTTP(w, r.WithContext(ctx))
 

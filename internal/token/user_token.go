@@ -8,7 +8,6 @@ import (
 	"mini-broker/internal/tbank"
 	"mini-broker/internal/users"
 	"net/http"
-	"strings"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -22,27 +21,6 @@ type trade_token struct {
 	Token string `json:"token"`
 }
 
-func AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		authHeader := r.Header.Get("Authorization")
-		if authHeader == "" {
-			http.Error(w, "Missing token", http.StatusUnauthorized)
-			return
-		}
-		tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
-
-		userID, err := users.ParseToken(tokenStr)
-		if err != nil {
-			http.Error(w, "Invalid token", http.StatusUnauthorized)
-			return
-		}
-		ctx := context.WithValue(r.Context(), "user_id", userID)
-
-		next.ServeHTTP(w, r.WithContext(ctx))
-
-	}
-}
-
 func (t *Token) AddToken(w http.ResponseWriter, r *http.Request) {
 	var isAproved bool
 	var verifyToken bool
@@ -52,17 +30,7 @@ func (t *Token) AddToken(w http.ResponseWriter, r *http.Request) {
 		Sender: sender,
 		DB:     pool,
 	}
-	authHeader := r.Header.Get("Authorization")
-	if authHeader == "" {
-		http.Error(w, "Missing token", http.StatusUnauthorized)
-		log.Println("Пустой токен!")
-		return
-	}
-	token := strings.TrimPrefix(authHeader, "Bearer ")
-	userId, userIdErr := users.ParseToken(token)
-	if userIdErr != nil {
-		log.Println(userIdErr)
-	}
+	userId := r.Context().Value("user_id").(int)
 
 	log.Println("AddToken: Начинаем процесс добавления торгового токена!")
 
