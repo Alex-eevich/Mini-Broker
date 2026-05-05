@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -10,7 +11,7 @@ import (
 
 func ConnectDB() (*pgxpool.Pool, error) {
 
-	connection := "postgres://postgres:2323655@localhost:5432/MiniBroker?sslmode=disable"
+	connection := os.Getenv("DATABASE_URL")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
