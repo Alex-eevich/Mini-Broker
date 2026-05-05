@@ -25,14 +25,14 @@ type DB_connect struct {
 func (c *Client) GetListAccounts() (string, error) {
 	var account Account
 
-	err := c.do(
+	postErr := c.do(
 		"POST",
 		"tinkoff.public.invest.api.contract.v1.SandboxService/GetSandboxAccounts",
 		map[string]string{},
 		&account,
 	)
-	if err != nil {
-		return "", err
+	if postErr != nil {
+		return "", postErr
 	}
 
 	var accounts []string
@@ -49,20 +49,20 @@ func (c *Client) OpenSandboxAccount() (string, error) {
 		AccountId string `json:"accountId"`
 	}
 
-	err := c.do(
+	postErr := c.do(
 		"POST",
 		"tinkoff.public.invest.api.contract.v1.SandboxService/OpenSandboxAccount",
 		map[string]string{},
 		&resp,
 	)
-	if err != nil {
-		log.Println("AddAccount: Не удалось создать торговый счет для пользователя!", err)
-		return "", err
+	if postErr != nil {
+		log.Println("AddAccount: Не удалось создать торговый счет для пользователя!", postErr)
+		return "", postErr
 	}
 	return resp.AccountId, nil
 }
 
-func (dbc *DB_connect) AddTradeAccountDB(accountId string, user_id int) error {
+func (dbc *DB_connect) AddTradeAccountDB(accountId string, userId int) error {
 	tx, err := dbc.DB.Begin(context.Background())
 	if err != nil {
 		log.Println("AddTradeAccountDB: Ошибка подключения к БД для добавления TradeAccount")
@@ -70,38 +70,38 @@ func (dbc *DB_connect) AddTradeAccountDB(accountId string, user_id int) error {
 	}
 	defer tx.Rollback(context.Background())
 
-	var token_id int
-	querytt := `
+	var tokenId int
+	queryToken := `
 		select id from user_tradetoken
 		where user_id = $1;`
-	selectttErr := tx.QueryRow(context.Background(), querytt, user_id).Scan(&token_id)
-	if selectttErr != nil {
+	selectErr := tx.QueryRow(context.Background(), queryToken, userId).Scan(&tokenId)
+	if selectErr != nil {
 		log.Println("AddTradeAccountDB: действующий токен не найден")
 	} else {
-		log.Println("Добавляем trade_account к токену ", token_id)
+		log.Println("Добавляем trade_account к токену ", tokenId)
 	}
 
-	queryta := `
+	queryAccount := `
 		select id from trade_account
 		where user_id = $1;`
-	selecttaErr := tx.QueryRow(context.Background(), queryta, user_id).Scan(&token_id)
+	selecttaErr := tx.QueryRow(context.Background(), queryAccount, userId).Scan(&tokenId)
 	if selecttaErr != nil {
 		log.Println("AddTradeAccountDB: действующий торговый счет уже существует в БД")
 	}
 
-	_, err = tx.Exec(context.Background(), `
+	_, insertErr := tx.Exec(context.Background(), `
 		insert into trade_account (user_id, user_token_id, number, create_time)
 		values ($1, $2, $3, now())
-		`, user_id, token_id, accountId)
+		`, userId, tokenId, accountId)
 
-	err = tx.Commit(context.Background())
-	if err != nil {
-		log.Println("AddTradeAccountDB: commit insert trade_account error", err.Error())
-		return err
+	commitErr := tx.Commit(context.Background())
+	if commitErr != nil {
+		log.Println("AddTradeAccountDB: commit insert trade_account error", commitErr.Error())
+		return commitErr
 	}
 
-	if err != nil {
-		return err
+	if insertErr != nil {
+		return insertErr
 	} else {
 		log.Println("AddTradeAccountDB: trade_account пользователя был добавлен в БД")
 		return nil

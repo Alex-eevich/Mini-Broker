@@ -2,65 +2,14 @@ package main
 
 import (
 	"log"
-	"mini-broker/internal/Token"
-	"mini-broker/internal/db"
-	"mini-broker/internal/tbank"
-	"mini-broker/internal/user_data"
+	"mini-broker/internal/app"
 	"net/http"
-	"os"
 )
 
 func main() {
-	pool, _ := db.ConnectDB()
-	userhandler := &user_data.Handler{
-		DB: pool,
-	}
-	sender := &user_data.SMTPEmailSender{}
-	emailhandler := &user_data.EmailService{
-		Sender: sender,
-		DB:     pool,
-	}
-	tradetokenhandler := &Token.Token{
-		DB: pool,
-	}
-	trade_admin_token := os.Getenv("TINKOFF_TOKEN")
-	client := tbank.NewClientFromToken(trade_admin_token)
-	http.Handle("/", http.FileServer(http.Dir("./internal/web")))
-	http.HandleFunc("/register", user_data.RegisterUser)
-	http.HandleFunc("/auth", user_data.LoginHandler)
-	http.HandleFunc("/verify-email", emailhandler.VerifyEmail)
-	http.HandleFunc("/verified", user_data.AuthMiddleware(emailhandler.VerifiedUser))
-	http.HandleFunc("/profile", user_data.AuthMiddleware(userhandler.MeHandler))
-	http.HandleFunc("/addtoken", Token.AuthMiddleware(tradetokenhandler.AddToken))
-	http.HandleFunc("/adminShares", client.Shares)
-	http.HandleFunc("/api/tickers", client.ListTickers)
-	http.HandleFunc("/api/getGraph", client.GetCandles)
 
+	app.Handler()
 	log.Println("Server started on :8080")
 	log.Fatal(http.ListenAndServe(":8080", nil))
-	/*
-		pool, err := db.ConnectDB()
-		if err != nil {
-			log.Fatal(err)
-		}
 
-		login := "sovaonelove"
-		_, getError := user_data.GetUserByLogin(pool, login)
-		if getError != nil {
-			log.Fatal(getError)
-		}
-
-		/*
-			users, getErr := user_data.GetUsers(pool)
-			if getErr != nil {
-				log.Fatal(getErr)
-			}
-			for user := range users {
-				fmt.Println(users[user].ID, users[user].FirstName, users[user].SecondName, users[user].Surname, users[user].BirthDate)
-			}
-			addError := user_data.AddUser(pool)
-			if addError != nil {
-				log.Fatal("Ошибка добавления пользователя!", addError)
-			}
-	*/
 }

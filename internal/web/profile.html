@@ -15,6 +15,7 @@
         <button type = "submit">Add token for trade</button>
     </form>
     <div id="ProfileStatus"></div>
+    <div id="actions"></div>
     <script>
         const button = document.getElementById("Verify");
 
@@ -25,10 +26,23 @@
                     Authorization: "Bearer " + token
                 }
             })
-            const user_data = await res.json()
-            document.getElementById("Username").innerText = user_data.Username
-            document.getElementById("Birthday").innerText = user_data.BirthDate
-            document.getElementById("Email").innerText = user_data.Email
+            const userData = await res.json()
+            const tradeToken = await fetch("/checkTradeToken", {
+                headers: {
+                    Authorization: "Bearer " + token
+                }
+            })
+            if (tradeToken.status === 200) {
+                const tradeButton = document.createElement("button")
+                tradeButton.innerText = "Go to TradePanel"
+                document.body.appendChild(tradeButton)
+                tradeButton.onclick = () => {
+                    window.location.href = "/trade_panel.html"
+                }
+            }
+            document.getElementById("Username").innerText = userData.Username
+            document.getElementById("Birthday").innerText = userData.BirthDate
+            document.getElementById("Email").innerText = userData.Email
         };
 
         button.addEventListener('click', async (e) => {

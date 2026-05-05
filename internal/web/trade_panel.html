@@ -38,7 +38,7 @@
 
 <div class="forTitle">
     <div></div>
-    <div id=graphTitle></div>
+    <div class="graphTitle"><h3 id="graphTitle"></h3></div>
     <div></div>
 </div>
 
@@ -103,8 +103,12 @@
             body: JSON.stringify(payload)
         })
         const graphTitle = document.getElementById('graphTitle');
-        graphTitle.innerText = "Исторические данные:";
-        resultDiv.innerText = "";
+        if (res.ok) {
+            resultDiv.innerText = "";
+            graphTitle.innerText = "Исторические данные:";
+        } else {
+            resultDiv.innerText = "Ошибка запроса!";
+        }
 
         console.log("STATUS:", res.status)
         const data = await res.json()

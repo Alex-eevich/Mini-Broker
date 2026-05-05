@@ -28,16 +28,16 @@ func (c *Client) Shares(w http.ResponseWriter, _ *http.Request) {
 		instrumentStatus: "INSTRUMENT_STATUS_BASE",
 	}
 
-	err := c.do(
+	postErr := c.do(
 		"POST",
 		"tinkoff.public.invest.api.contract.v1.InstrumentsService/Shares",
 		req,
 		&instrument,
 	)
 
-	if err != nil {
-		fmt.Println("Shares: Ошибка получения списка ticker'ов", err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+	if postErr != nil {
+		fmt.Println("Shares: Ошибка получения списка ticker'ов", postErr)
+		http.Error(w, postErr.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -51,32 +51,32 @@ func (c *Client) Shares(w http.ResponseWriter, _ *http.Request) {
 }
 
 func AddTicker(instrument instruments) error {
-	pool, err := db.ConnectDB()
-	if err != nil {
-		return err
+	pool, connErr := db.ConnectDB()
+	if connErr != nil {
+		return connErr
 	} else {
 		log.Println("AddTicker: Подключение к БД успешно!")
 	}
-	db_conn := DB_connect{
+	dbConn := DB_connect{
 		DB: pool,
 	}
 
-	conn, err := db_conn.DB.Begin(context.Background())
-	if err != nil {
+	conn, dbErr := dbConn.DB.Begin(context.Background())
+	if dbErr != nil {
 		log.Println("AddTicker: Ошибка подключения к БД")
-		return err
+		return dbErr
 	} else {
 		log.Println("AddTicker: открыто соединение к БД")
 	}
 	defer conn.Rollback(context.Background())
 
 	for _, i := range instrument.Instruments {
-		_, err = conn.Exec(context.Background(), `
+		_, insertErr := conn.Exec(context.Background(), `
 		insert into tickers (ticker, figi, country, create_time)
 		values ($1, $2, $3, now())
 		`, i.Ticker, i.Figi, i.CountryOfRiskName)
-		if err != nil {
-			return err
+		if insertErr != nil {
+			return insertErr
 		} else {
 			log.Println("AddTicker: Ticker ", i.Ticker, " добавлен в БД")
 		}
@@ -88,13 +88,13 @@ func AddTicker(instrument instruments) error {
 
 func (c *Client) GetTickers() ([]string, error) {
 	pool, _ := db.ConnectDB()
-	db_conn := DB_connect{
+	dbConn := DB_connect{
 		DB: pool,
 	}
 
-	conn, err := db_conn.DB.Begin(context.Background())
-	if err != nil {
-		return nil, err
+	conn, connErr := dbConn.DB.Begin(context.Background())
+	if connErr != nil {
+		return nil, connErr
 	}
 
 	tickers, tickErr := conn.Query(context.Background(),
@@ -117,9 +117,9 @@ func (c *Client) GetTickers() ([]string, error) {
 }
 
 func (c *Client) ListTickers(w http.ResponseWriter, _ *http.Request) {
-	tickers, err := c.GetTickers()
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+	tickers, getErr := c.GetTickers()
+	if getErr != nil {
+		http.Error(w, getErr.Error(), http.StatusInternalServerError)
 		return
 	}
 	w.Header().Set("Content-Type", "application/json")

@@ -1,4 +1,4 @@
-package user_data
+package users
 
 import (
 	"context"
@@ -45,9 +45,9 @@ func LoginHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	token, err := GenerateToken(user.ID)
-	if err != nil {
-		log.Println(err)
+	token, tokenErr := GenerateToken(user.ID)
+	if tokenErr != nil {
+		log.Println(tokenErr)
 		http.Error(w, "Ошибка генерации токена", http.StatusInternalServerError)
 		return
 	} else {
@@ -74,9 +74,9 @@ func GetUserByLogin(db *pgxpool.Pool, login string) (*User, error) {
 	return &user, nil
 }
 
-func GenerateToken(user_id int) (string, error) {
+func GenerateToken(userId int) (string, error) {
 	claims := jwt.MapClaims{
-		"user_id": user_id,
+		"user_id": userId,
 		"exp":     time.Now().Add(time.Hour * 24).Unix(),
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
@@ -84,11 +84,11 @@ func GenerateToken(user_id int) (string, error) {
 }
 
 func ParseToken(tokenStr string) (int, error) {
-	token, err := jwt.Parse(tokenStr, func(token *jwt.Token) (interface{}, error) {
+	token, tokenErr := jwt.Parse(tokenStr, func(token *jwt.Token) (interface{}, error) {
 		return jwtKey, nil
 	})
-	if err != nil || !token.Valid {
-		return 0, err
+	if tokenErr != nil || !token.Valid {
+		return 0, tokenErr
 	}
 
 	claims := token.Claims.(jwt.MapClaims)
@@ -122,22 +122,22 @@ func (h *Handler) MeHandler(w http.ResponseWriter, r *http.Request) {
 
 	userID := r.Context().Value("user_id").(int)
 
-	var username, first_name, second_name, surname, BirthDate, Email string
+	var username, firstName, secondName, surname, birthDate, email string
 	err := h.DB.QueryRow(
 		r.Context(),
 		"SELECT first_name, second_name, surname, birth_date, email FROM users WHERE id=$1",
 		userID,
-	).Scan(&first_name, &second_name, &surname, &BirthDate, &Email)
+	).Scan(&firstName, &secondName, &surname, &birthDate, &email)
 
 	if err != nil {
 		http.Error(w, "user not found", 404)
 		return
 	}
 
-	username = first_name + " " + second_name + " " + surname
+	username = firstName + " " + secondName + " " + surname
 	json.NewEncoder(w).Encode(map[string]string{
 		"Username":  username,
-		"BirthDate": BirthDate,
-		"Email":     Email,
+		"BirthDate": birthDate,
+		"Email":     email,
 	})
 }

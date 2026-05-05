@@ -1,4 +1,4 @@
-package user_data
+package users
 
 import (
 	"context"
@@ -24,12 +24,12 @@ type User struct {
 }
 
 func GetUsers(db *pgxpool.Pool) ([]User, error) {
-	rows, err := db.Query(context.Background(), `
+	rows, rowsErr := db.Query(context.Background(), `
 		SELECT *
 		FROM users
 	`)
-	if err != nil {
-		return nil, fmt.Errorf("Ошибка получения данных о пользователях: %w", err)
+	if rowsErr != nil {
+		return nil, fmt.Errorf("Ошибка получения данных о пользователях: %w", rowsErr)
 	}
 	defer rows.Close()
 
@@ -65,9 +65,9 @@ func AddInputUser(db *pgxpool.Pool) error {
 		returning id;
 	`
 	var id int
-	user, err := InputUser()
-	if err != nil {
-		log.Println(err)
+	user, userErr := InputUser()
+	if userErr != nil {
+		log.Println(userErr)
 	}
 	user.Password = hashing(user.Password)
 	error := db.QueryRow(context.Background(), query, user.FirstName, user.SecondName, user.Surname, user.BirthDate, user.Email, user.Login, user.Password).Scan(&id)
@@ -102,9 +102,9 @@ func RegisterUser(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	pool, err := db.ConnectDB()
-	if err != nil {
-		log.Println(err)
+	pool, poolErr := db.ConnectDB()
+	if poolErr != nil {
+		log.Println(poolErr)
 	}
 
 	var req User

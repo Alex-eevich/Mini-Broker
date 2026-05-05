@@ -10,12 +10,12 @@ import (
 
 func ConnectDB() (*pgxpool.Pool, error) {
 
-	connString := "postgres://postgres:2323655@localhost:5432/MiniBroker?sslmode=disable"
+	connection := "postgres://postgres:2323655@localhost:5432/MiniBroker?sslmode=disable"
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	pool, err := pgxpool.New(ctx, connString)
+	pool, err := pgxpool.New(ctx, connection)
 	if err != nil {
 		return nil, fmt.Errorf("Ошибка создания пула: %w", err)
 	}

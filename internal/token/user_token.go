@@ -1,4 +1,4 @@
-package Token
+package token
 
 import (
 	"context"
@@ -6,10 +6,11 @@ import (
 	"log"
 	"mini-broker/internal/db"
 	"mini-broker/internal/tbank"
-	"mini-broker/internal/user_data"
+	"mini-broker/internal/users"
 	"net/http"
 	"strings"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -30,7 +31,7 @@ func AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		}
 		tokenStr := strings.TrimPrefix(authHeader, "Bearer ")
 
-		userID, err := user_data.ParseToken(tokenStr)
+		userID, err := users.ParseToken(tokenStr)
 		if err != nil {
 			http.Error(w, "Invalid token", http.StatusUnauthorized)
 			return
@@ -43,11 +44,11 @@ func AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 }
 
 func (t *Token) AddToken(w http.ResponseWriter, r *http.Request) {
-	var is_aproved bool
-	var verify_token bool
+	var isAproved bool
+	var verifyToken bool
 	pool, _ := db.ConnectDB()
-	sender := &user_data.SMTPEmailSender{}
-	emailhandler := &user_data.EmailService{
+	sender := &users.SMTPEmailSender{}
+	emailHandler := &users.EmailService{
 		Sender: sender,
 		DB:     pool,
 	}
@@ -58,77 +59,73 @@ func (t *Token) AddToken(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	token := strings.TrimPrefix(authHeader, "Bearer ")
-	user_id, err := user_data.ParseToken(token)
+	userId, userIdErr := users.ParseToken(token)
+	if userIdErr != nil {
+		log.Println(userIdErr)
+	}
 
 	log.Println("AddToken: Начинаем процесс добавления торгового токена!")
 
-	var gettoken trade_token
-	reqErr := json.NewDecoder(r.Body).Decode(&gettoken)
+	var getToken trade_token
+	reqErr := json.NewDecoder(r.Body).Decode(&getToken)
 	if reqErr != nil {
 		log.Println(reqErr)
 	}
 
-	trade_token_var := gettoken.Token
-	is_aproved = emailhandler.VerifyCheck(user_id)
-	log.Println("VerifyCheck: ", is_aproved)
-	if is_aproved == false {
+	tradeTokenVar := getToken.Token
+	isAproved = emailHandler.VerifyCheck(userId)
+	log.Println("VerifyCheck: ", isAproved)
+	if isAproved == false {
 		log.Println("AddToken: Ошибка добавления токена! Email пользователя не верифицирован!")
 		http.Error(w, "The user has not been verified", 403)
 		return
 	}
-	verify_token = tbank.ConnectTbankWithTokenCheck(trade_token_var)
-	log.Println("ConnectTbankWithTokenCheck: ", verify_token)
-	if verify_token == false {
-		log.Println("AddToken: Ошибка добавления токена! Токен", trade_token_var, "не прошел проверку")
+	verifyToken = tbank.ConnectTbankWithTokenCheck(tradeTokenVar)
+	log.Println("ConnectTbankWithTokenCheck: ", verifyToken)
+	if verifyToken == false {
+		log.Println("AddToken: Ошибка добавления токена! Токен", tradeTokenVar, "не прошел проверку")
 		http.Error(w, "The token has not been verified", 401)
 		return
 	}
-	log.Println("AddToken: Добавляем торговый токен для пользователя: ", user_id)
+	log.Println("AddToken: Добавляем торговый токен для пользователя: ", userId)
 
-	conn, err := t.DB.Begin(context.Background())
-	if err != nil {
+	conn, connErr := t.DB.Begin(context.Background())
+	if connErr != nil {
 		http.Error(w, "connect to DB error", 500)
-		log.Println("connect to DB error", err.Error())
+		log.Println("connect to DB error", connErr.Error())
 		return
 	}
 	defer conn.Rollback(context.Background())
 
-	var token_body string
-	query := `
-		select id from user_tradetoken
-		where token = $1;`
-	selectErr := conn.QueryRow(context.Background(), query, trade_token_var).Scan(&token_body)
-	if selectErr != nil {
-		log.Println(selectErr)
-	}
-	if token_body != "" {
-		http.Error(w, "Токен уже есть у пользователя!", 402)
+	checkToken := CheckToken(userId, conn)
+	if checkToken == false {
 		log.Println("Токен уже есть у пользователя! ")
+		http.Error(w, "У вас уже есть токен!", 402)
 		return
 	}
 
-	_, err = conn.Exec(context.Background(), `
+	_, insertErr := conn.Exec(context.Background(), `
 		insert into user_tradetoken (user_id, token, create_time, status)
 		values ($1, $2, now(), 'open')
-		`, user_id, trade_token_var)
-	if err != nil {
+		`, userId, tradeTokenVar)
+	if insertErr != nil {
 		http.Error(w, "insert token error", 500)
-		log.Println("insert token error ", err.Error())
+		log.Println("insert token error ", insertErr.Error())
 		return
 	}
-	err = conn.Commit(context.Background())
-	if err != nil {
+	commitErr := conn.Commit(context.Background())
+	if commitErr != nil {
 		http.Error(w, "commit insert token error", 500)
-		log.Println("commit insert token error", err.Error())
+		log.Println("commit insert token error", commitErr.Error())
 		return
 	}
 
-	client := tbank.NewClientFromToken(trade_token_var)
-	db_conn := tbank.DB_connect{
+	client := tbank.NewClientFromToken(tradeTokenVar)
+	dbConn := tbank.DB_connect{
 		DB: pool,
 	}
-	accounts, err := client.GetListAccounts()
-	if err != nil {
+	accounts, accountsErr := client.GetListAccounts()
+	if accountsErr != nil {
 		http.Error(w, "get account error", 500)
 		return
 	}
@@ -138,8 +135,8 @@ func (t *Token) AddToken(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, "add account error", 500)
 			return
 		}
-		log.Println("AddToken.AddAccount: Добавлен торговый счет для пользователя", user_id)
-		addRes := db_conn.AddTradeAccountDB(addedAccount, user_id)
+		log.Println("AddToken.AddAccount: Добавлен торговый счет для пользователя", userId)
+		addRes := dbConn.AddTradeAccountDB(addedAccount, userId)
 		if addRes != nil {
 			log.Println("AddTradeAccountDB", addRes)
 			http.Error(w, "AddTradeAccountDB: ошибка добавления торгового счета в БД", 500)
@@ -148,7 +145,7 @@ func (t *Token) AddToken(w http.ResponseWriter, r *http.Request) {
 			log.Println("AddTradeAccountDB:", addedAccount, " добавлен в БД")
 		}
 	} else {
-		addRes := db_conn.AddTradeAccountDB(accounts, user_id)
+		addRes := dbConn.AddTradeAccountDB(accounts, userId)
 		if addRes != nil {
 			log.Println("AddTradeAccountDB", addRes)
 			http.Error(w, "AddTradeAccountDB: ошибка добавления торгового счета в БД", 500)
@@ -156,6 +153,41 @@ func (t *Token) AddToken(w http.ResponseWriter, r *http.Request) {
 		} else {
 			log.Println("AddTradeAccountDB:", accounts, " добавлен в БД")
 		}
+	}
+	w.WriteHeader(http.StatusOK)
+}
+
+func CheckToken(userId int, conn pgx.Tx) bool {
+	var tokenBody string
+	query := `
+		select id from user_tradetoken
+		where user_id = $1;`
+	selectErr := conn.QueryRow(context.Background(), query, userId).Scan(&tokenBody)
+	if selectErr != nil {
+		log.Println(selectErr)
+	}
+	if tokenBody != "" {
+		return false
+	} else {
+		return true
+	}
+}
+
+func (t *Token) CheckTradeToken(w http.ResponseWriter, r *http.Request) {
+	userId := r.Context().Value("user_id").(int)
+	pool, _ := db.ConnectDB()
+	defer pool.Close()
+	conn, connErr := t.DB.Begin(context.Background())
+	if connErr != nil {
+		http.Error(w, "connect to DB error", 500)
+		log.Println("connect to DB error", connErr.Error())
+		return
+	}
+	defer conn.Rollback(context.Background())
+	check := CheckToken(userId, conn)
+	if check == true {
+		http.Error(w, "CheckToken error", 403)
+		return
 	}
 	w.WriteHeader(http.StatusOK)
 }

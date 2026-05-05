@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"log"
 	"mini-broker/internal/db"
-	"mini-broker/internal/user_data"
+	"mini-broker/internal/users"
 	"net/http"
 	"strconv"
 	"strings"
@@ -70,6 +70,8 @@ type Results struct {
 	Results []ResponseItem `json:"results"`
 }
 
+/*
+ */
 func (c *Client) GetCandles(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -82,9 +84,9 @@ func (c *Client) GetCandles(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	token := strings.TrimPrefix(authHeader, "Bearer ")
-	user_id, err := user_data.ParseToken(token)
-	if err != nil {
-		log.Println(err)
+	userId, tokenErr := users.ParseToken(token)
+	if tokenErr != nil {
+		log.Println(tokenErr)
 	}
 	pool, errConn := db.ConnectDB()
 	if errConn != nil {
@@ -99,22 +101,25 @@ func (c *Client) GetCandles(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, reqErr.Error(), http.StatusBadRequest)
 		return
 	}
-	var trade_token string
+	var tradeToken string
+	log.Println(userId)
 	query := `
 		select token from user_tradetoken
 		where user_id = $1;`
-	selectErr := pool.QueryRow(context.Background(), query, user_id).Scan(&trade_token)
+	selectErr := pool.QueryRow(context.Background(), query, userId).Scan(&tradeToken)
 	if selectErr != nil {
 		log.Println(selectErr.Error())
+		http.Error(w, tradeToken, http.StatusUnauthorized)
+		return
 	}
 
-	log.Println(trade_token)
+	log.Println(tradeToken)
 	log.Println(filt)
 	reqJson := c.RebuildJsonFilter(filt, pool)
 	for _, req := range reqJson.Requests {
 		log.Println(req)
 	}
-	candles, err := c.TbankGetCandles(reqJson)
+	candles, _ := c.TbankGetCandles(reqJson)
 	resultsCandle := BuildResponse(candles)
 	log.Println(resultsCandle)
 	w.Header().Set("Content-Type", "application/json")
@@ -155,14 +160,14 @@ func (c *Client) RebuildJsonFilter(filter Filter, pool *pgxpool.Pool) Request {
 			continue
 		}
 
-		err := pool.QueryRow(
+		figiErr := pool.QueryRow(
 			context.Background(),
 			`select figi from tickers where ticker = $1`,
 			ticker,
 		).Scan(&figi)
 
-		if err != nil {
-			log.Println(err)
+		if figiErr != nil {
+			log.Println(figiErr)
 			continue
 		}
 
@@ -188,9 +193,9 @@ func (c *Client) TbankGetCandles(request Request) ([]ResponseItemAPI, error) {
 		go func(i int, req Item) {
 			defer wg.Done()
 
-			res, errGoroutines := c.GorouteGetCandles(req)
-			if errGoroutines != nil {
-				errors[i] = errGoroutines
+			res, goroutinesErr := c.GorouteGetCandles(req)
+			if goroutinesErr != nil {
+				errors[i] = goroutinesErr
 				return
 			}
 			results[i] = res
@@ -206,14 +211,14 @@ func (c *Client) GorouteGetCandles(req Item) (ResponseItemAPI, error) {
 	log.Println(req.Ticker)
 
 	var response ResponseItemAPI
-	errApi := c.do(
+	apiErr := c.do(
 		"POST",
 		"tinkoff.public.invest.api.contract.v1.MarketDataService/GetCandles",
 		req,
 		&response,
 	)
-	if errApi != nil {
-		return ResponseItemAPI{}, errApi
+	if apiErr != nil {
+		return ResponseItemAPI{}, apiErr
 	} else {
 		log.Println("GorouteGetCandles: Запрос на Candles отправлен успешно!")
 	}
@@ -230,10 +235,10 @@ func BuildResponse(data []ResponseItemAPI) Results {
 		}
 		for _, cd := range d.Candles {
 
-			closecandles := parseMoney(cd.Close)
+			closeCandles := parseMoney(cd.Close)
 			item.CandleRes = append(item.CandleRes, CandleRes{
 				Time:  cd.Time.Unix(),
-				Close: closecandles,
+				Close: closeCandles,
 			})
 		}
 

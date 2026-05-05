@@ -1,4 +1,4 @@
-package user_data
+package users
 
 import (
 	"context"
@@ -77,53 +77,53 @@ func (s *EmailService) VerifiedUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	token := strings.TrimPrefix(authHeader, "Bearer ")
-	userID, err := ParseToken(token)
+	userId, err := ParseToken(token)
 	if err != nil {
 		http.Error(w, "Invalid token", http.StatusUnauthorized)
 	}
-	tokenStr, errGen := generateVerifyToken()
-	if errGen != nil {
+	tokenStr, genErr := generateVerifyToken()
+	if genErr != nil {
 		http.Error(w, "Error create verify token", http.StatusUnauthorized)
 	}
 
 	query := `
 	Select email from users u where id = $1;
 	`
-	var Email string
+	var email string
 	var messageType string
-	getError := s.DB.QueryRow(context.Background(), query, userID).Scan(&Email)
-	if getError != nil {
-		log.Println("Ошибка проверки наличия пользователя:", getError)
+	getErr := s.DB.QueryRow(context.Background(), query, userId).Scan(&email)
+	if getErr != nil {
+		log.Println("Ошибка проверки наличия пользователя:", getErr)
 	}
 	link := "http://localhost:8080/verify-email?token=" + tokenStr
 	body := "Verify email: " + link
-	sendError := s.Sender.Send(
-		Email,
+	sendErr := s.Sender.Send(
+		email,
 		body,
 	)
-	if sendError != nil {
-		log.Println("SendError", sendError)
+	if sendErr != nil {
+		log.Println("SendError", sendErr)
 	} else {
-		log.Println("Отправлено сообщение на Email:", Email)
+		log.Println("Отправлено сообщение на Email:", email)
 		messageType = "Mail_Verified"
-		s.InsertMessage(strconv.Itoa(userID), tokenStr, messageType, Email)
+		s.InsertMessage(strconv.Itoa(userId), tokenStr, messageType, email)
 		w.WriteHeader(http.StatusOK)
 	}
 }
 
 func hashing(body string) string {
-	hash_bytes := sha256.Sum256([]byte(body))
-	return hex.EncodeToString(hash_bytes[:])
+	hashBytes := sha256.Sum256([]byte(body))
+	return hex.EncodeToString(hashBytes[:])
 }
 
-func (s *EmailService) InsertMessage(userID, token, messageType, email string) {
+func (s *EmailService) InsertMessage(userId, token, messageType, email string) {
 	query := `
 		INSERT INTO mail_message (type, user_id, body, email,create_time, status, usedate)	
 		values ($1, $2, $3, $4, now(), 'send', NULL)
 		returning id;
 	`
 	var id int
-	error := s.DB.QueryRow(context.Background(), query, messageType, userID, token, email).Scan(&id)
+	error := s.DB.QueryRow(context.Background(), query, messageType, userId, token, email).Scan(&id)
 	if error != nil {
 		log.Println(error)
 	} else {
@@ -148,8 +148,8 @@ func (s *EmailService) VerifyEmail(w http.ResponseWriter, r *http.Request) {
 		log.Println("Токен не дейстивтелен! ", err)
 	}
 
-	tx, err := s.DB.Begin(context.Background())
-	if err != nil {
+	tx, txErr := s.DB.Begin(context.Background())
+	if txErr != nil {
 		http.Error(w, "tx error", 500)
 		return
 	}
@@ -182,7 +182,7 @@ func (s *EmailService) VerifyEmail(w http.ResponseWriter, r *http.Request) {
 	<html>
 	<head>
 	    <title>Email verified</title>
-		<meta http-equiv="refresh" content="3;url=/Authorization.html">
+		<meta http-equiv="refresh" content="3;url=/authorization.html">
 	</head>
 	<body>
 	    <h2>Email successfully verified!</h2>
@@ -197,15 +197,15 @@ func (s *EmailService) VerifyEmail(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *EmailService) VerifyCheck(user_id int) bool {
-	var is_aproved bool
+	var isAproved bool
 	query := `
 		select is_aproved from users u where id = $1;`
-	errSelect := s.DB.QueryRow(context.Background(), query, user_id).Scan(&is_aproved)
-	if errSelect != nil {
-		log.Println("VerifyCheck: Ошибка проверки верификации пользователя", errSelect)
+	selectErr := s.DB.QueryRow(context.Background(), query, user_id).Scan(&isAproved)
+	if selectErr != nil {
+		log.Println("VerifyCheck: Ошибка проверки верификации пользователя", selectErr)
 		return false
 	}
-	if is_aproved == true {
+	if isAproved == true {
 		return true
 	} else {
 		return false
