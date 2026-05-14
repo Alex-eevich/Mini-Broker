@@ -56,7 +56,12 @@
     let selects = []
 
     async function loadTickers() {
-        const res = await fetch("/api/tickers")
+        const res = await fetch("/api/tickers", {
+            method: "POST",
+                headers: {
+                Authorization: "Bearer " + token,
+                    'Content-Type': 'application/json' },
+        })
         const tickers = await res.json()
 
         const options = tickers.map(t => ({
