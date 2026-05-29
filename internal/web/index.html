@@ -3,10 +3,111 @@
 <head>
     <meta charset="UTF-8">
     <title>Main page</title>
-</head>
+    <link rel="stylesheet" href="/style/index.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Serif:wght@500&family=Roboto:ital,wdth,wght@0,75..100,100..900;1,75..100,100..900&display=swap" rel="stylesheet"></head>
 <body>
     <h1>Main page</h1>
     <button type = "submit"><a href="registrarion.html">Registration</a></button>
     <button type = "submit"><a href="authorization.html">Autorization</a></button>
+    <div id="APIStatus"></div>
+    <div class="news-container-buttons">
+        <div id="ru-button" class="news-button-rus active-tab"><p>Ru-Источники</p></div>
+        <div id="inter-button" class="news-button-inter"><p>Inter-Источники</p></div>
+    </div>
+    <div class="free-space"></div>
+    <div id="news-container" class="news-container">
+        <div class="news-body"></div>
+    </div>
+
+    <script>
+
+        const container = document.getElementById("news-container")
+
+        const ruButton = document.getElementById("ru-button")
+        const interButton = document.getElementById("inter-button")
+
+        async function loadNews(url) {
+
+            container.innerHTML = ""
+
+            const response = await fetch(url)
+
+            const data = await response.json()
+
+            let html = ""
+
+            data.forEach(item => {
+
+                html += `
+            <div class="news-card">
+
+                ${item.image
+                    ? `
+                        <div class="news-image">
+                            <img src="${item.image}">
+                        </div>
+                      `
+                    : ""
+                }
+
+                <div class="news-title">
+                    ${item.title}
+                </div>
+
+                <div class="news-desc">
+                    ${item.description}
+                </div>
+
+                <div class="news-meta">
+                    🗞 ${item.categories} |
+                    🕒 ${item.published_at} |
+                    <a class="news-link"
+                       href="${item.url}"
+                       target="_blank">
+
+                       Читать источник →
+
+                    </a>
+                </div>
+
+            </div>
+        `
+            })
+
+            container.innerHTML = html
+        }
+
+        function setActiveButton(activeButton) {
+
+            ruButton.classList.remove("active-tab")
+            interButton.classList.remove("active-tab")
+
+            activeButton.classList.add("active-tab")
+        }
+
+        ruButton.addEventListener("click", async () => {
+
+            setActiveButton(ruButton)
+
+            await loadNews("/news/rus")
+        })
+
+        interButton.addEventListener("click", async () => {
+
+            setActiveButton(interButton)
+
+            await loadNews("/news/inter")
+        })
+
+        window.onload = async () => {
+
+            setActiveButton(ruButton)
+
+            await loadNews("/news/rus")
+        }
+
+    </script>
 </body>
 </html>

@@ -3,6 +3,7 @@ package app
 import (
 	"log"
 	"mini-broker/internal/db"
+	"mini-broker/internal/news"
 	"mini-broker/internal/tbank"
 	"mini-broker/internal/token"
 	"mini-broker/internal/users"
@@ -26,6 +27,8 @@ func Handler() {
 	tradeAdminToken := os.Getenv("TINKOFF_TOKEN")
 	client := tbank.NewClientFromToken(tradeAdminToken)
 	http.Handle("/", http.FileServer(http.Dir("./internal/web")))
+	http.HandleFunc("/news/rus", news.RussianNews)
+	http.HandleFunc("/news/inter", news.WorldNews)
 	http.HandleFunc("/register", users.RegisterUser)
 	http.HandleFunc("/auth", users.LoginHandler)
 	http.HandleFunc("/adminShares", client.Shares)
